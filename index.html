@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Clave Dinámica</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1724">
+  <style>
+    :root{--bg:#0f1724;--fg:#e6eef8;--muted:#9fb3c9}
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#071029,#07263a);color:var(--fg);padding:24px}
+    .card{width:100%;max-width:520px;text-align:center}
+    h1{margin:0 0 6px;font-size:20px}
+    .clave{font-size:72px;font-weight:800;letter-spacing:6px;margin:16px 0}
+    .detalle{color:var(--muted);font-size:14px;margin-bottom:16px;white-space:pre}
+    .row{display:flex;gap:10px;justify-content:center}
+    button{background:#1f6feb;border:0;padding:10px 14px;border-radius:12px;color:#fff;font-weight:600}
+    .sub{font-size:12px;color:var(--muted);margin-top:14px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Clave dinámica</h1>
+    <div id="clave" class="clave">----</div>
+    <div id="detalle" class="detalle">Cargando…</div>
+    <div class="row">
+      <button id="copiar">Copiar</button>
+      <button id="actualizar">Actualizar</button>
+    </div>
+    <div class="sub">Añade a pantalla de inicio para usarla como app y sin conexión.</div>
+  </div>
+
+  <script>
+    // Convierte domingo(0)..sábado(6) → lunes(1)..domingo(7)
+    function mapWeekday(jsDay){ return jsDay === 0 ? 7 : jsDay; }
+
+    function calcularClave(date = new Date()) {
+      const minute = date.getMinutes();     // 0..59
+      const day = date.getDate();           // 1..31
+      const wdayJs = date.getDay();         // 0=Dom..6=Sab
+      const M = (minute > 30) ? 1 : 0;
+      const D = day;
+      const P = (D % 2 === 0) ? 2 : 1;
+      const N = mapWeekday(wdayJs);
+
+      const MD = M * D;
+      const PN = P * N;
+
+      const MD2 = String(MD).padStart(2, '0');
+      const PN2 = String(PN).padStart(2, '0');
+      const clave = MD2 + PN2;
+
+      return {
+        clave,
+        M, D: String(D).padStart(2,'0'), P, N, minute,
+        nextChangeInSec: (minute <= 30)
+          ? ((30 - minute) * 60 + (60 - date.getSeconds())) // cambia a min 31
+          : ((60 - minute) * 60 - date.getSeconds())        // cambia al siguiente h:00
+      };
+    }
+
+    const $clave = document.getElementById('clave');
+    const $detalle = document.getElementById('detalle');
+    const $copiar = document.getElementById('copiar');
+    const $actualizar = document.getElementById('actualizar');
+
+    function actualizarUI() {
+      const info = calcularClave(new Date());
+      $clave.textContent = info.clave;
+      $detalle.textContent =
+        `M=${info.M}  D=${info.D}  P=${info.P}  N=${info.N}  (min=${String(info.minute).padStart(2,'0')})
+Próximo cambio ≈ ${Math.max(0, Math.floor(info.nextChangeInSec/60))} min`;
+    }
+
+    // Refresca cada 2 s mientras esté abierta
+    actualizarUI();
+    const timer = setInterval(actualizarUI, 2000);
+
+    $copiar.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText($clave.textContent);
+        $copiar.textContent = 'Copiado ✅';
+        setTimeout(()=> $copiar.textContent='Copiar',1200);
+      } catch { $copiar.textContent = 'No se pudo copiar'; }
+    });
+    $actualizar.addEventListener('click', actualizarUI);
+
+    // Registrar Service Worker para offline
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js');
+      });
+    }
+  </script>
+</body>
+</html>
